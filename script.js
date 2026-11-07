@@ -220,6 +220,19 @@ const empty = (emoji, teks) =>
   `<div class="empty"><b>${emoji}</b>${teks}</div>`;
 
 /* =========================================
+   IKON MATA RIWAYAT GAJI
+========================================= */
+
+window._riwayatTerbuka = window._riwayatTerbuka || {};
+
+function toggleRincianRiwayat(id) {
+  window._riwayatTerbuka[id] =
+    !window._riwayatTerbuka[id];
+
+  render();
+}
+
+/* =========================================
    MULAI APLIKASI
 ========================================= */
 
@@ -421,9 +434,30 @@ async function gajiDiterima() {
   if (!setuju) return;
 
   try {
+
+    /* RINCIAN CAFE DAN CUP */
+
+    const rincianCafe = Object.values(
+      DATA.pesanan.reduce((hasil, p) => {
+        const nama = p.cafeNama || "Cafe tanpa nama";
+
+        if (!hasil[nama]) {
+          hasil[nama] = {
+            nama: nama,
+            cup: 0
+          };
+        }
+
+        hasil[nama].cup += Number(p.cup || 0);
+
+        return hasil;
+      }, {})
+    );
+
     await dbAdd("riwayat", {
       totalCup: h.cup,
       jumlahPesanan: h.jml,
+      rincianCafe: rincianCafe,
       pendapatan: h.pend,
       kasbon: h.kasbon,
       gaji: h.gaji
@@ -434,11 +468,11 @@ async function gajiDiterima() {
 
     toast("🎉 Gaji diterima! Data di-reset");
 
-    // Tidak menyebut pesanan cafe selesai saat menerima gaji.
     suara(
       "Terima kasih, Gilang! Gaji sudah diterima. " +
       "Kerja bagus hari ini. Semoga selalu semangat dan sukses!"
     );
+
   } catch (error) {
     console.error(error);
     toast("❌ Gagal menyimpan penerimaan gaji");
@@ -609,7 +643,9 @@ function render() {
   $("gjPd").textContent = rp(h.pend);
   $("gjKs").textContent = "- " + rp(h.kasbon);
 
-  /* RIWAYAT GAJI */
+  /* =====================================
+     RIWAYAT GAJI
+  ===================================== */
 
   const totCup = DATA.riwayat.reduce(
     (a, x) => a + Number(x.totalCup || 0), 0
@@ -624,13 +660,86 @@ function render() {
       </div>
       ` + byNew(DATA.riwayat).map(r => `
         <div class="hist">
+
           <div class="d">📅 ${tgl(r.waktu)}</div>
-          <button class="del" onclick="hapus('riwayat','${esc(r.id)}','🗑️','Hapus riwayat gaji ini?')">🗑️</button>
-          <div class="row"><span>🥤 Total Cup</span><span>${num(r.totalCup)} cup</span></div>
-          <div class="row"><span>📦 Pesanan</span><span>${r.jumlahPesanan}</span></div>
-          <div class="row"><span>💵 Pendapatan</span><span class="plus">${rp(r.pendapatan)}</span></div>
-          <div class="row"><span>💸 Kasbon</span><span class="minus">- ${rp(r.kasbon)}</span></div>
-          <div class="row"><b>✅ Gaji Diterima</b><b>${rp(r.gaji)}</b></div>
+
+          <!-- TOMBOL HAPUS TETAP TERPISAH -->
+          <button
+            class="del"
+            onclick="hapus('riwayat','${esc(r.id)}','🗑️','Hapus riwayat gaji ini?')"
+          >🗑️</button>
+
+          <div class="row">
+            <span>🥤 Total Cup</span>
+            <span>${num(r.totalCup)} cup</span>
+          </div>
+
+          <!-- PESANAN DAN IKON MATA -->
+          <div class="row">
+            <span>📦 Pesanan</span>
+
+            <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:10px;">
+              ${r.jumlahPesanan}
+
+              <button
+                type="button"
+                onclick="toggleRincianRiwayat('${esc(r.id)}')"
+                style="
+                  position:static;
+                  display:inline-flex;
+                  align-items:center;
+                  justify-content:center;
+                  width:36px;
+                  height:32px;
+                  padding:0;
+                  margin:0;
+                  border:1px solid rgba(0,200,255,.3);
+                  border-radius:9px;
+                  background:rgba(0,200,255,.12);
+                  color:white;
+                  font-size:18px;
+                  cursor:pointer;
+                "
+                title="Lihat rincian pesanan"
+              >${window._riwayatTerbuka[r.id] ? "🙈" : "👁️"}</button>
+            </span>
+          </div>
+
+          <!-- RINCIAN CAFE -->
+          ${window._riwayatTerbuka[r.id] ? `
+            <div class="rincian-cafe">
+              ${
+                Array.isArray(r.rincianCafe) && r.rincianCafe.length
+                ? r.rincianCafe.map(c => `
+                    <div class="row">
+                      <span>${esc(c.nama)}</span>
+                      <span>${num(c.cup)} cup</span>
+                    </div>
+                  `).join("")
+                : `
+                    <div class="s">
+                      Rincian cafe tidak tersedia untuk riwayat lama.
+                    </div>
+                  `
+              }
+            </div>
+          ` : ""}
+
+          <div class="row">
+            <span>💵 Pendapatan</span>
+            <span class="plus">${rp(r.pendapatan)}</span>
+          </div>
+
+          <div class="row">
+            <span>💸 Kasbon</span>
+            <span class="minus">- ${rp(r.kasbon)}</span>
+          </div>
+
+          <div class="row">
+            <b>✅ Gaji Diterima</b>
+            <b>${rp(r.gaji)}</b>
+          </div>
+
         </div>
       `).join("")
     : empty("📜", "Belum ada riwayat gaji");
